@@ -1,0 +1,43 @@
+name: Compile
+on:
+  schedule:
+    - cron: "10 10 1-31/2 * *"
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+         token: '${{ github.token }}'
+
+      - name: release
+        run: |
+            rm -fr * .git .github
+            sudo apt update
+            sudo apt install git -y
+            sudo snap install go --classic
+            git clone -b main https://github.com/SagerNet/sing-box
+            cd sing-box/cmd/sing-box
+            CGO_ENABLED=0 GOOS=linux GOARCH=mipsle GOMIPS=softfloat go build -trimpath -ldflags "-s -w -buildid= -extldflags=-static" -tags with_clash_api,with_gvisor,with_quic -o ${{ github.workspace }}/sing
+            cd ${{ github.workspace }}
+            wget https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-amd64_linux.tar.xz
+            tar xf upx-4.2.4-amd64_linux.tar.xz
+            mv upx-4.2.4-amd64_linux/upx .
+            chmod +x ./upx 
+            ./upx --best --ultra-brute sing
+            rm -rf sing-box upx*
+            mkdir -p .github/workflows
+            wget -qO .github/workflows/blank.yml https://github.com/${{ github.repository }}/raw/main/.github/workflows/blank.yml &> /dev/null
+            git config --global init.defaultBranch main
+            git init
+            git add .
+            git config user.name "mainians"
+            git config user.email "61817665+mainians@users.noreply.github.com"
+            git commit -m "sing binary"
+            git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+            git push origin main --force
